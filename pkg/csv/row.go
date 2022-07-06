@@ -28,7 +28,7 @@ func (r *Row) GetInt(name string) (int, error) {
 
 	i, err := strconv.Atoi(v)
 	if err != nil {
-		return 0, fmt.Errorf("%s is not a valid int", name)
+		return 0, fmt.Errorf("%s is not a valid int (%s)", name, v)
 	}
 
 	return i, nil
@@ -42,7 +42,7 @@ func (r *Row) GetDate(name string) (time.Time, error) {
 
 	t, err := parseDate(v)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%s is not a valid date (%s)", name, v)
+		return time.Time{}, fmt.Errorf("%s is not a valid date", name)
 	}
 
 	return t, nil

@@ -13,6 +13,7 @@ type Case struct {
 	MajorityVotes int
 	MinorityVotes int
 	DecisionDate  time.Time
+	Votes         []*Vote
 }
 
 func readCase(

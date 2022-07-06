@@ -75,6 +75,13 @@ func ReadFile(src string) ([]*Term, error) {
 		if added {
 			term.Cases = append(term.Cases, c)
 		}
+
+		vote, err := readVote(row)
+		if err != nil {
+			return nil, err
+		}
+
+		c.Votes = append(c.Votes, vote)
 	}
 
 	return terms, nil
