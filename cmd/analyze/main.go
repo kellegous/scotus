@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -10,15 +10,28 @@ import (
 )
 
 type Flags struct {
-	DataFile string
+	StoreDir     string
+	CasesFromURL string
+	ResetStore   bool
 }
 
 func (f *Flags) Register(fs *flag.FlagSet) {
 	fs.StringVar(
-		&f.DataFile,
-		"data-file",
-		"SCDB_2021_01_justiceCentered_Citation.csv",
-		"The justic centered data file from SCOTUS database")
+		&f.StoreDir,
+		"store.dir",
+		"data",
+		"the directory where downloaded data will be kept")
+	fs.StringVar(
+		&f.CasesFromURL,
+		"store.cases-url",
+		scotus.DefaultCasesURL,
+		"the SCOTUS database file to use for case data")
+
+	fs.BoolVar(
+		&f.ResetStore,
+		"store.reset",
+		false,
+		"whether to reset the store")
 }
 
 func main() {
@@ -26,15 +39,21 @@ func main() {
 	flags.Register(flag.CommandLine)
 	flag.Parse()
 
-	terms, err := scotus.ReadFile(flags.DataFile)
+	s, err := scotus.OpenStore(
+		context.Background(),
+		flags.StoreDir,
+		scotus.WithCasesFromURL(flags.CasesFromURL),
+		scotus.Reset(flags.ResetStore))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	b, err := json.MarshalIndent(terms, "", "    ")
+	terms, err := s.Terms()
 	if err != nil {
 		log.Panic(err)
 	}
 
-	fmt.Printf("%s\n", b)
+	for _, term := range terms {
+		fmt.Printf("%d (%d)\n", term.Year, len(term.Cases))
+	}
 }

@@ -48,6 +48,14 @@ func (r *Row) GetDate(name string) (time.Time, error) {
 	return t, nil
 }
 
+func (r *Row) AsMap() map[string]string {
+	row := map[string]string{}
+	for f, ix := range r.fields {
+		row[f] = r.values[ix]
+	}
+	return row
+}
+
 func parseDate(v string) (time.Time, error) {
 	vals := strings.SplitN(v, "/", 3)
 	if len(vals) != 3 {
