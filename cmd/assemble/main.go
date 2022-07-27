@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/kellegous/scotus/pkg/data"
+	"github.com/kellegous/scotus/pkg/data/overrulings"
 	"github.com/kellegous/scotus/pkg/data/scotusdb"
 )
 
@@ -60,4 +61,12 @@ func main() {
 	for _, term := range terms {
 		fmt.Printf("%d\n", term.Year)
 	}
+
+	overrulings, err := overrulings.Read(
+		context.Background(),
+		overrulings.WithDataDir(flags.DataDir))
+	if err != nil {
+		log.Panic(err)
+	}
+	fmt.Println(overrulings)
 }
