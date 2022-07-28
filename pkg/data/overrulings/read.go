@@ -34,6 +34,57 @@ func Read(
 	return read(src)
 }
 
+func isElementOf(name string) func(n *html.Node) bool {
+	return func(n *html.Node) bool {
+		return n.Type == html.ElementNode &&
+			n.Data == name
+	}
+}
+
+func hasParentOf(
+	n *html.Node,
+	fn func(n *html.Node) bool,
+) bool {
+	for c := n.Parent; c != nil; c = c.Parent {
+		if fn(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func findElementsByPath(
+	root *html.Node,
+	path ...string,
+) []*html.Node {
+	if len(path) == 0 {
+		return nil
+	}
+
+	// find all elements matching the right-most selector
+	results := findAll(
+		root,
+		isElementOf(path[len(path)-1]),
+		nil)
+	path = path[:len(path)-1]
+
+	// now walk backwards along the path, removing elements that
+	// do not have matching parents.
+	for n := len(path); n > 0; n = len(path) {
+		var filtered []*html.Node
+		q := isElementOf(path[n-1])
+		path = path[:n-1]
+		for _, result := range results {
+			if hasParentOf(result, q) {
+				filtered = append(filtered, result)
+			}
+		}
+		results = filtered
+	}
+
+	return results
+}
+
 func findOne(
 	root *html.Node,
 	matches func(n *html.Node) bool,
@@ -129,29 +180,9 @@ func parseDecision(tds []*html.Node) (*Decision, error) {
 }
 
 func extract(doc *html.Node) ([]*Decision, error) {
-	table := findOne(doc, func(n *html.Node) bool {
-		return n.Type == html.ElementNode &&
-			n.Data == "table"
-	})
-	if table == nil {
-		return nil, errors.New("no table found in html doc")
-	}
-
-	tbody := findOne(table, func(n *html.Node) bool {
-		return n.Type == html.ElementNode &&
-			n.Data == "tbody"
-	})
-	if tbody == nil {
-		return nil, errors.New("no table body found in html doc")
-	}
-
-	trs := findAll(
-		tbody,
-		func(n *html.Node) bool {
-			return n.Type == html.ElementNode &&
-				n.Data == "tr"
-		},
-		nil)
+	trs := findElementsByPath(
+		doc,
+		"table", "tbody", "tr")
 
 	decisions := make([]*Decision, 0, len(trs))
 
