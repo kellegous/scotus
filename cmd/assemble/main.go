@@ -68,5 +68,11 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	fmt.Println(overrulings)
+
+	for _, decision := range overrulings {
+		fmt.Printf("%d\n", decision.Year)
+		for _, c := range decision.Overruled {
+			fmt.Printf("    %d\n", c.Year)
+		}
+	}
 }
