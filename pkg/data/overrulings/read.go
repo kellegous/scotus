@@ -1,17 +1,23 @@
 package overrulings
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/kellegous/scotus/pkg/data/internal"
 	"golang.org/x/net/html"
 )
 
 const dataFileName = "overrulings.html"
+
+var yearPattern = regexp.MustCompile(`\((\d{4})\)`)
 
 func Read(
 	ctx context.Context,
@@ -85,23 +91,6 @@ func findElementsByPath(
 	return results
 }
 
-func findOne(
-	root *html.Node,
-	matches func(n *html.Node) bool,
-) *html.Node {
-	if matches(root) {
-		return root
-	}
-
-	for n := root.FirstChild; n != nil; n = n.NextSibling {
-		if n := findOne(n, matches); n != nil {
-			return n
-		}
-	}
-
-	return nil
-}
-
 func findAll(
 	root *html.Node,
 	matches func(n *html.Node) bool,
@@ -126,55 +115,108 @@ func parseYear(td *html.Node) (int, error) {
 	return 0, errors.New("cell doesn't include a single text node")
 }
 
-func parseYears(td *html.Node) ([]int, error) {
-	var years []int
-	for c := td.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type != html.TextNode {
-			continue
+func innerTextOf(n *html.Node) string {
+	var buf bytes.Buffer
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode {
+			buf.WriteString(c.Data)
+		} else if c.Type == html.ElementNode && c.Data == "b" {
+			buf.WriteByte(' ')
 		}
-
-		year, err := strconv.Atoi(c.Data)
-		if err != nil {
-			return nil, err
-		}
-
-		years = append(years, year)
 	}
-
-	return years, nil
+	return buf.String()
 }
 
-func parseOverruledCases(td []*html.Node) ([]*Case, error) {
-	years, err := parseYears(td[4])
-	if err != nil {
-		return nil, err
+func getAttribute(
+	n *html.Node,
+	name string,
+) string {
+	for _, attr := range n.Attr {
+		if attr.Key == name {
+			return attr.Val
+		}
 	}
+	return ""
+}
 
-	cases := make([]*Case, 0, len(years))
-	for _, year := range years {
-		cases = append(cases, &Case{
-			Year: year,
-		})
+func parseCaseText(n *html.Node) (string, *html.Node) {
+	var buf bytes.Buffer
+	for ; n != nil; n = n.NextSibling {
+		switch n.Type {
+		case html.TextNode:
+			d := strings.TrimSpace(n.Data)
+			if strings.HasSuffix(d, ";") {
+				buf.WriteString(d[:len(d)-1])
+				return strings.TrimSpace(buf.String()), n
+			}
+			buf.WriteString(d)
+		case html.ElementNode:
+			buf.WriteByte(' ')
+		}
 	}
+	return strings.TrimSpace(buf.String()), nil
+}
 
+func extractYear(name string) (int, error) {
+	m := yearPattern.FindStringSubmatch(name)
+	if len(m) != 2 {
+		return 0, fmt.Errorf("year pattern not found in <%s>", name)
+	}
+	return strconv.Atoi(m[1])
+}
+
+func parseCases(td *html.Node) ([]*Case, error) {
+	var cases []*Case
+	for c := td.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && c.Data == "a" {
+			cases = append(cases, &Case{
+				Name: innerTextOf(c),
+				URL:  getAttribute(c, "href"),
+			})
+		} else {
+			s, n := parseCaseText(c)
+			if s != "" {
+				cases = append(cases, &Case{
+					Name: s,
+				})
+			}
+			if n == nil {
+				break
+			}
+			c = n
+		}
+	}
 	return cases, nil
 }
 
 func parseDecision(tds []*html.Node) (*Decision, error) {
-	year, err := parseYear(tds[2])
+	c, err := parseCases(tds[1])
+	if err != nil {
+		return nil, err
+	} else if len(c) != 1 {
+		return nil, fmt.Errorf("expected a single case, found %d", len(c))
+	}
+
+	c[0].Year, err = parseYear(tds[2])
 	if err != nil {
 		return nil, err
 	}
 
-	cases, err := parseOverruledCases(tds)
+	cases, err := parseCases(tds[3])
 	if err != nil {
 		return nil, err
+	}
+
+	for _, c := range cases {
+		year, err := extractYear(c.Name)
+		if err != nil {
+			return nil, err
+		}
+		c.Year = year
 	}
 
 	return &Decision{
-		Case: Case{
-			Year: year,
-		},
+		Case:      c[0],
 		Overruled: cases,
 	}, nil
 }

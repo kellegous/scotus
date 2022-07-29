@@ -1,6 +1,6 @@
 package overrulings
 
 type Decision struct {
-	Case
+	*Case
 	Overruled []*Case
 }

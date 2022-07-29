@@ -72,7 +72,7 @@ func main() {
 	for _, decision := range overrulings {
 		fmt.Printf("%d\n", decision.Year)
 		for _, c := range decision.Overruled {
-			fmt.Printf("    %d\n", c.Year)
+			fmt.Printf("  %s, %d\n", c.Name, c.Year)
 		}
 	}
 }
