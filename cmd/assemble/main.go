@@ -37,6 +37,11 @@ func (f *Flags) Register(fs *flag.FlagSet) {
 		"whether to reset the data dir")
 }
 
+func yearsStandingInErr(c *overrulings.Decision) int {
+	ocs := c.Overruled
+	return c.Year - ocs[len(ocs)-1].Year
+}
+
 func main() {
 	var flags Flags
 	flags.Register(flag.CommandLine)
@@ -69,10 +74,14 @@ func main() {
 		log.Panic(err)
 	}
 
+	var count int
 	for _, decision := range overrulings {
-		fmt.Printf("%d\n", decision.Year)
-		for _, c := range decision.Overruled {
-			fmt.Printf("  %s, %d\n", c.Name, c.Year)
+		years := yearsStandingInErr(decision)
+		if years >= 49 {
+			count++
 		}
+		fmt.Printf("% 3d %s\n", years, decision.Name)
 	}
+
+	fmt.Printf("%d / %d\n", count, len(overrulings))
 }
