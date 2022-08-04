@@ -27,6 +27,18 @@ var justices = []string{
 
 type Vote byte
 
+func (v Vote) MarshalJSON() ([]byte, error) {
+	switch v {
+	case WithMajority:
+		return []byte(`"+"`), nil
+	case WithMinority:
+		return []byte(`"-"`), nil
+	case Recused:
+		return []byte(`"x"`), nil
+	}
+	return nil, fmt.Errorf("invalid vote: %c", v)
+}
+
 const (
 	WithMajority Vote = '+'
 	WithMinority Vote = '-'
