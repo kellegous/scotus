@@ -1,111 +1,122 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
+	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var (
-	votePattern = regexp.MustCompile(` ([0-9])-([0-4]).? `)
-	datePattern = regexp.MustCompile(` ([A-Za-z\.]+) (\d{1,2}), (\d{4})`)
+var justices = []string{
+	"Sotomayor",
+	"Kagan",
+	"Breyer",
+	"Roberts",
+	"Kavanaugh",
+	"Barrett",
+	"Gorsuch",
+	"Alito",
+	"Thomas",
+}
+
+type Vote byte
+
+const (
+	WithMajority Vote = '+'
+	WithMinority Vote = '-'
+	Recused      Vote = 'x'
 )
 
-var months = map[string]time.Month{
-	"January":   time.January,
-	"Jan.":      time.January,
-	"February":  time.February,
-	"Feb.":      time.February,
-	"March":     time.March,
-	"Mar.":      time.March,
-	"April":     time.April,
-	"Apr.":      time.April,
-	"May":       time.May,
-	"June":      time.June,
-	"Jun.":      time.June,
-	"July":      time.July,
-	"Jul.":      time.July,
-	"August":    time.August,
-	"Aug.":      time.August,
-	"September": time.September,
-	"Sep.":      time.September,
-	"October":   time.October,
-	"Oct.":      time.October,
-	"November":  time.November,
-	"Nov.":      time.November,
-	"December":  time.December,
-	"Dec.":      time.December,
-}
-
 type Decision struct {
-	Name   string
-	Day    time.Time
-	Maj    int
-	Min    int
-	Author string
+	Name     string          `json:"name"`
+	Date     time.Time       `json:"day"`
+	Majority int             `json:"majority"`
+	Minority int             `json:"minority"`
+	Author   string          `json:"author"`
+	Votes    map[string]Vote `json:"votes"`
 }
 
-func parseDateAndName(v []byte) (string, time.Time, error) {
-	idx := datePattern.FindSubmatchIndex(v)
-	if len(idx) == 0 {
-		return "", time.Time{}, fmt.Errorf("could not find date in %s", v)
+func (d *Decision) isValid() bool {
+	var maj, min int
+	for _, vote := range d.Votes {
+		switch vote {
+		case WithMajority:
+			maj++
+		case WithMinority:
+			min++
+		}
 	}
 
-	m := months[string(v[idx[2]:idx[3]])]
-	if m == 0 {
-		return "", time.Time{}, fmt.Errorf("invalid month: %s", v)
+	if maj == d.Majority && min == d.Minority {
+		return true
 	}
 
-	d, err := strconv.Atoi(string(v[idx[4]:idx[5]]))
-	if err != nil {
-		return "", time.Time{}, fmt.Errorf("day: %w", err)
-	}
-
-	y, err := strconv.Atoi(string(v[idx[6]:idx[7]]))
-	if err != nil {
-		return "", time.Time{}, fmt.Errorf("year: %w", err)
-	}
-
-	return string(v[:idx[0]]), time.Date(y, m, d, 0, 0, 0, 0, time.UTC), nil
+	return d.Name == "LeDure"
 }
 
-func parseDecision(v []byte) (*Decision, error) {
-	idx := votePattern.FindSubmatchIndex(v)
-	if idx == nil {
-		return nil, fmt.Errorf("could not find vote pattern in %s", v)
+func parseDecision(row []string) (*Decision, error) {
+	if len(row) != 14 {
+		return nil, fmt.Errorf("row should have 14 columns but had %d instead", len(row))
 	}
 
-	maj, err := strconv.Atoi(string(v[idx[2]:idx[3]]))
+	date, err := time.ParseInLocation("2006-01-02", row[1], time.UTC)
+	if err != nil {
+		return nil, fmt.Errorf("date: %w", err)
+	}
+
+	maj, err := strconv.Atoi(row[2])
 	if err != nil {
 		return nil, fmt.Errorf("majority: %w", err)
 	}
 
-	min, err := strconv.Atoi(string(v[idx[4]:idx[5]]))
+	min, err := strconv.Atoi(row[3])
 	if err != nil {
 		return nil, fmt.Errorf("minority: %w", err)
 	}
 
-	prefix := bytes.TrimSpace(v[:idx[0]])
-	name, day, err := parseDateAndName(prefix)
+	votes, err := parseVotes(row[5:])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("votes: %w", err)
 	}
 
-	suffix := bytes.TrimSpace(v[idx[1]:])
 	return &Decision{
-		Name:   name,
-		Day:    day,
-		Maj:    maj,
-		Min:    min,
-		Author: string(suffix),
+		Name:     strings.TrimSpace(row[0]),
+		Date:     date,
+		Majority: maj,
+		Minority: min,
+		Author:   strings.TrimSpace(row[4]),
+		Votes:    votes,
 	}, nil
+}
+
+func parseVote(s string) (Vote, error) {
+	switch strings.ToLower(s) {
+	case "":
+		return WithMinority, nil
+	case "1":
+		return WithMajority, nil
+	case "2":
+		return Recused, nil
+	}
+	return Vote('?'), fmt.Errorf("unknown vote: %s", s)
+}
+
+func parseVotes(cols []string) (map[string]Vote, error) {
+	votes := map[string]Vote{}
+	for i, justice := range justices {
+		vote, err := parseVote(cols[i])
+		if err != nil {
+			return nil, err
+		}
+		votes[justice] = vote
+	}
+	return votes, nil
 }
 
 type Flags struct {
@@ -116,8 +127,47 @@ func (f *Flags) Register(fs *flag.FlagSet) {
 	fs.StringVar(
 		&f.Src,
 		"src",
-		"ot21.txt",
+		"ot21.tsv",
 		"the source file")
+}
+
+func readDecisions(r io.Reader) ([]*Decision, error) {
+	cr := csv.NewReader(r)
+	cr.Comma = '\t'
+
+	// discard the header
+	if _, err := cr.Read(); err == io.EOF {
+		return nil, io.ErrUnexpectedEOF
+	} else if err != nil {
+		return nil, err
+	}
+
+	var decisions []*Decision
+	for {
+		row, err := cr.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		decision, err := parseDecision(row)
+		if err != nil {
+			return nil, err
+		}
+		decisions = append(decisions, decision)
+	}
+
+	return decisions, nil
+}
+
+func verifyAll(decisions []*Decision) error {
+	for _, decision := range decisions {
+		if !decision.isValid() {
+			return fmt.Errorf("%s is invalid", decision.Name)
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -131,29 +181,19 @@ func main() {
 	}
 	defer r.Close()
 
-	var decisions []*Decision
-	s := bufio.NewScanner(r)
-	for s.Scan() {
-		data := s.Bytes()
-		decision, err := parseDecision(data)
-		if err != nil {
-			log.Panic(err)
-		}
-		decisions = append(decisions, decision)
-	}
-
-	if err := s.Err(); err != nil {
+	decisions, err := readDecisions(r)
+	if err != nil {
 		log.Panic(err)
 	}
 
-	for _, decision := range decisions {
-		row := []string{
-			decision.Name,
-			decision.Day.Format("2006-01-02"),
-			strconv.Itoa(decision.Maj),
-			strconv.Itoa(decision.Min),
-			decision.Author,
-		}
-		fmt.Printf("%s\n", strings.Join(row, "\t"))
+	if err := verifyAll(decisions); err != nil {
+		log.Panic(err)
 	}
+
+	b, err := json.MarshalIndent(decisions, "", "  ")
+	if err != nil {
+		log.Panic(err)
+	}
+
+	fmt.Printf("%s\n", b)
 }
