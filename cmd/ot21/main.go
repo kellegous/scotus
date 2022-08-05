@@ -51,10 +51,14 @@ type Decision struct {
 	Majority int             `json:"majority"`
 	Minority int             `json:"minority"`
 	Author   string          `json:"author"`
-	Votes    map[string]Vote `json:"votes"`
+	Votes    map[string]Vote `json:"votes,omitempty"`
 }
 
 func (d *Decision) isValid() bool {
+	if d.Votes == nil {
+		return true
+	}
+
 	var maj, min int
 	for _, vote := range d.Votes {
 		switch vote {
@@ -65,17 +69,15 @@ func (d *Decision) isValid() bool {
 		}
 	}
 
-	if maj == d.Majority && min == d.Minority {
-		return true
-	}
-
-	return d.Name == "LeDure"
+	return maj == d.Majority && min == d.Minority
 }
 
 func parseDecision(row []string) (*Decision, error) {
 	if len(row) != 14 {
 		return nil, fmt.Errorf("row should have 14 columns but had %d instead", len(row))
 	}
+
+	name := strings.TrimSpace(row[0])
 
 	date, err := time.ParseInLocation("2006-01-02", row[1], time.UTC)
 	if err != nil {
@@ -92,13 +94,19 @@ func parseDecision(row []string) (*Decision, error) {
 		return nil, fmt.Errorf("minority: %w", err)
 	}
 
-	votes, err := parseVotes(row[5:])
-	if err != nil {
-		return nil, fmt.Errorf("votes: %w", err)
+	var votes map[string]Vote
+	// so here's the thing comrades, LeDure was a per curium opinion where the votes were not
+	// known. It is reported as 4-4 but we don't know how people voted ... except that Barrett
+	// recused herself.
+	if name != "LeDure" {
+		votes, err = parseVotes(row[5:])
+		if err != nil {
+			return nil, fmt.Errorf("votes: %w", err)
+		}
 	}
 
 	return &Decision{
-		Name:     strings.TrimSpace(row[0]),
+		Name:     name,
 		Date:     date,
 		Majority: maj,
 		Minority: min,
