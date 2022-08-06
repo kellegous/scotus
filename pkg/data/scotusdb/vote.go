@@ -3,9 +3,9 @@ package scotusdb
 import "github.com/kellegous/scotus/pkg/csv"
 
 type Vote struct {
-	ID          string
-	JusticeName string
-	Decision    Decision
+	ID          string   `json:"id"`
+	JusticeName string   `json:"justice-name"`
+	Decision    Decision `json:"decision"`
 }
 
 func readVote(row *csv.Row) (*Vote, error) {

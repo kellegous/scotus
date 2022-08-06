@@ -7,13 +7,12 @@ import (
 )
 
 type Case struct {
-	ID            string
-	Name          string
-	Docket        string
-	MajorityVotes int
-	MinorityVotes int
-	DecisionDate  time.Time
-	Votes         []*Vote
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	MajorityVotes int       `json:"majority-votes"`
+	MinorityVotes int       `json:"minority-votes"`
+	DecisionDate  time.Time `json:"decision-date"`
+	Votes         []*Vote   `json:"votes"`
 }
 
 func readCase(
@@ -30,11 +29,6 @@ func readCase(
 	}
 
 	name, err := row.Get("caseName")
-	if err != nil {
-		return nil, false, err
-	}
-
-	docket, err := row.Get("docket")
 	if err != nil {
 		return nil, false, err
 	}
@@ -57,7 +51,6 @@ func readCase(
 	c := &Case{
 		ID:            id,
 		Name:          name,
-		Docket:        docket,
 		MajorityVotes: majVotes,
 		MinorityVotes: minVotes,
 		DecisionDate:  descDate,

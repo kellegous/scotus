@@ -63,25 +63,16 @@ func main() {
 		log.Panic(err)
 	}
 
-	for _, term := range terms {
-		fmt.Printf("%d\n", term.Year)
-	}
-
-	overrulings, err := overrulings.Read(
-		context.Background(),
-		overrulings.WithDataDir(flags.DataDir))
-	if err != nil {
-		log.Panic(err)
-	}
-
-	var count int
-	for _, decision := range overrulings {
-		years := yearsStandingInErr(decision)
-		if years >= 49 {
-			count++
+	justices := map[string]bool{}
+	for _, t := range terms {
+		for _, c := range t.Cases {
+			for _, v := range c.Votes {
+				justices[v.JusticeName] = true
+			}
 		}
-		fmt.Printf("% 3d %s\n", years, decision.Name)
 	}
 
-	fmt.Printf("%d / %d\n", count, len(overrulings))
+	for name := range justices {
+		fmt.Printf("%s\n", name)
+	}
 }

@@ -11,68 +11,50 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kellegous/scotus/pkg/data/scotusdb"
 )
 
 var justices = []string{
-	"Sotomayor",
-	"Kagan",
-	"Breyer",
-	"Roberts",
-	"Kavanaugh",
-	"Barrett",
-	"Gorsuch",
-	"Alito",
-	"Thomas",
+	"SSotomayor",
+	"EKagan",
+	"SGBreyer",
+	"JGRoberts",
+	"BMKavanaugh",
+	"ACBarrett",
+	"NMGorsuch",
+	"SAAlito",
+	"CThomas",
 }
 
-type Vote byte
+type Flags struct {
+	Src string
+}
 
-func (v Vote) MarshalJSON() ([]byte, error) {
-	switch v {
-	case WithMajority:
-		return []byte(`"+"`), nil
-	case WithMinority:
-		return []byte(`"-"`), nil
-	case Recused:
-		return []byte(`"x"`), nil
+func (f *Flags) Register(fs *flag.FlagSet) {
+	fs.StringVar(
+		&f.Src,
+		"src",
+		"ot21.tsv",
+		"the source file")
+}
+
+func parseDecision(s string) (scotusdb.Decision, error) {
+	switch s {
+	case "":
+		return scotusdb.AgainstMajority, nil
+	case "1":
+		return scotusdb.WithMajority, nil
+	case "2":
+		return scotusdb.Abstained, nil
 	}
-	return nil, fmt.Errorf("invalid vote: %c", v)
+	return scotusdb.Abstained, fmt.Errorf("invalid decision: %s", s)
 }
 
-const (
-	WithMajority Vote = '+'
-	WithMinority Vote = '-'
-	Recused      Vote = 'x'
-)
-
-type Decision struct {
-	Name     string          `json:"name"`
-	Date     time.Time       `json:"day"`
-	Majority int             `json:"majority"`
-	Minority int             `json:"minority"`
-	Author   string          `json:"author"`
-	Votes    map[string]Vote `json:"votes,omitempty"`
-}
-
-func (d *Decision) isValid() bool {
-	if d.Votes == nil {
-		return true
-	}
-
-	var maj, min int
-	for _, vote := range d.Votes {
-		switch vote {
-		case WithMajority:
-			maj++
-		case WithMinority:
-			min++
-		}
-	}
-
-	return maj == d.Majority && min == d.Minority
-}
-
-func parseDecision(row []string) (*Decision, error) {
+func parseCase(
+	id string,
+	row []string,
+) (*scotusdb.Case, error) {
 	if len(row) != 14 {
 		return nil, fmt.Errorf("row should have 14 columns but had %d instead", len(row))
 	}
@@ -94,76 +76,44 @@ func parseDecision(row []string) (*Decision, error) {
 		return nil, fmt.Errorf("minority: %w", err)
 	}
 
-	var votes map[string]Vote
-	// so here's the thing comrades, LeDure was a per curium opinion where the votes were not
-	// known. It is reported as 4-4 but we don't know how people voted ... except that Barrett
-	// recused herself.
-	if name != "LeDure" {
-		votes, err = parseVotes(row[5:])
-		if err != nil {
-			return nil, fmt.Errorf("votes: %w", err)
-		}
-	}
+	var votes []*scotusdb.Vote
 
-	return &Decision{
-		Name:     name,
-		Date:     date,
-		Majority: maj,
-		Minority: min,
-		Author:   strings.TrimSpace(row[4]),
-		Votes:    votes,
-	}, nil
-}
-
-func parseVote(s string) (Vote, error) {
-	switch strings.ToLower(s) {
-	case "":
-		return WithMinority, nil
-	case "1":
-		return WithMajority, nil
-	case "2":
-		return Recused, nil
-	}
-	return Vote('?'), fmt.Errorf("unknown vote: %s", s)
-}
-
-func parseVotes(cols []string) (map[string]Vote, error) {
-	votes := map[string]Vote{}
+	cols := row[5:]
 	for i, justice := range justices {
-		vote, err := parseVote(cols[i])
+		d, err := parseDecision(cols[i])
 		if err != nil {
 			return nil, err
 		}
-		votes[justice] = vote
+
+		votes = append(votes, &scotusdb.Vote{
+			ID:          fmt.Sprintf("%s-%s", id, justice),
+			JusticeName: justice,
+			Decision:    d,
+		})
 	}
-	return votes, nil
+
+	return &scotusdb.Case{
+		ID:            id,
+		Name:          name,
+		DecisionDate:  date,
+		MajorityVotes: maj,
+		MinorityVotes: min,
+		Votes:         votes,
+	}, nil
 }
 
-type Flags struct {
-	Src string
-}
-
-func (f *Flags) Register(fs *flag.FlagSet) {
-	fs.StringVar(
-		&f.Src,
-		"src",
-		"ot21.tsv",
-		"the source file")
-}
-
-func readDecisions(r io.Reader) ([]*Decision, error) {
+func readCases(r io.Reader) ([]*scotusdb.Case, error) {
 	cr := csv.NewReader(r)
 	cr.Comma = '\t'
 
-	// discard the header
 	if _, err := cr.Read(); err == io.EOF {
 		return nil, io.ErrUnexpectedEOF
 	} else if err != nil {
 		return nil, err
 	}
 
-	var decisions []*Decision
-	for {
+	var cases []*scotusdb.Case
+	for i := 1; ; i++ {
 		row, err := cr.Read()
 		if err == io.EOF {
 			break
@@ -171,24 +121,25 @@ func readDecisions(r io.Reader) ([]*Decision, error) {
 			return nil, err
 		}
 
-		decision, err := parseDecision(row)
+		c, err := parseCase(fmt.Sprintf("2021-%03d", i), row)
 		if err != nil {
 			return nil, err
 		}
-		decisions = append(decisions, decision)
+
+		cases = append(cases, c)
 	}
 
-	return decisions, nil
+	return cases, nil
 }
 
-func verifyAll(decisions []*Decision) error {
-	for _, decision := range decisions {
-		if !decision.isValid() {
-			return fmt.Errorf("%s is invalid", decision.Name)
-		}
-	}
-	return nil
-}
+// func verifyAll(decisions []*Decision) error {
+// 	for _, decision := range decisions {
+// 		if !decision.isValid() {
+// 			return fmt.Errorf("%s is invalid", decision.Name)
+// 		}
+// 	}
+// 	return nil
+// }
 
 func main() {
 	var flags Flags
@@ -201,16 +152,12 @@ func main() {
 	}
 	defer r.Close()
 
-	decisions, err := readDecisions(r)
+	cases, err := readCases(r)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if err := verifyAll(decisions); err != nil {
-		log.Panic(err)
-	}
-
-	b, err := json.MarshalIndent(decisions, "", "  ")
+	b, err := json.MarshalIndent(cases, "", "  ")
 	if err != nil {
 		log.Panic(err)
 	}

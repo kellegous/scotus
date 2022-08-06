@@ -3,8 +3,8 @@ package scotusdb
 import "github.com/kellegous/scotus/pkg/csv"
 
 type Term struct {
-	Year  int
-	Cases []*Case
+	Year  int     `json:"year"`
+	Cases []*Case `json:"cases"`
 }
 
 func readTerm(
