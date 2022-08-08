@@ -1,6 +1,7 @@
 package csv
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -20,10 +21,17 @@ func (r *Row) Get(name string) (string, error) {
 	return "", fmt.Errorf("unknown field: %s", name)
 }
 
-func (r *Row) GetInt(name string) (int, error) {
+func (r *Row) GetInt(
+	name string,
+	emptyVal int,
+) (int, error) {
 	v, err := r.Get(name)
 	if err != nil {
 		return 0, err
+	}
+
+	if v == "" {
+		return emptyVal, nil
 	}
 
 	i, err := strconv.Atoi(v)
@@ -78,4 +86,18 @@ func parseDate(v string) (time.Time, error) {
 	}
 
 	return time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.UTC), nil
+}
+
+func (r *Row) MustMarshal() []byte {
+	m := map[string]string{}
+	for field, idx := range r.fields {
+		m[field] = r.values[idx]
+	}
+
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+
+	return b
 }

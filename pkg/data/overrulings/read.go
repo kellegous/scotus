@@ -12,26 +12,30 @@ import (
 	"strings"
 
 	"github.com/kellegous/scotus/pkg/data/internal"
+	"github.com/kellegous/scotus/pkg/data/option"
 	"golang.org/x/net/html"
 )
 
-const dataFileName = "overrulings.html"
+const (
+	dataFileName = "overrulings.html"
+	DefaultURL   = "https://constitution.congress.gov/resources/decisions-overruled/"
+)
 
 var yearPattern = regexp.MustCompile(`\((\d{4})\)`)
 
 func Read(
 	ctx context.Context,
-	opts ...Option,
+	opts ...option.DownloadOption,
 ) ([]*Decision, error) {
-	var o Options
-	o.apply(opts)
+	var o option.DownloadOptions
+	o.ApplyOptions(opts, option.FromURL(DefaultURL))
 
-	src := filepath.Join(o.dataDir, dataFileName)
+	src := filepath.Join(o.DataDir, dataFileName)
 
 	if err := internal.EnsureDownload(
 		ctx,
-		o.client,
-		o.url,
+		o.Client,
+		o.URL,
 		src,
 	); err != nil {
 		return nil, err

@@ -11,7 +11,10 @@ import (
 	"github.com/kellegous/scotus/pkg/data/internal"
 )
 
-const casesFileName = "SCDB_justiceCentered_Citation.csv.zip"
+const (
+	legacyCaseFilename = "SCDB_Legacy_justiceCentered_Citation.csv.zip"
+	modernCaseFilename = "SCDB_Modern_justiceCentered_Citation.csv.zip"
+)
 
 func Read(
 	ctx context.Context,
@@ -20,21 +23,40 @@ func Read(
 	var o Options
 	o.apply(opts)
 
-	src := filepath.Join(o.dataDir, casesFileName)
-
+	legacySrc := filepath.Join(o.dataDir, legacyCaseFilename)
 	if err := internal.EnsureDownload(
 		ctx,
 		o.client,
-		o.casesURL,
-		src,
+		o.legacyCasesURL,
+		legacySrc,
 	); err != nil {
 		return nil, err
 	}
 
-	return readTerms(src)
+	legacy, err := readTermsFromCSV(legacySrc)
+	if err != nil {
+		return nil, err
+	}
+
+	modernSrc := filepath.Join(o.dataDir, modernCaseFilename)
+	if err := internal.EnsureDownload(
+		ctx,
+		o.client,
+		o.modernCasesURL,
+		modernSrc,
+	); err != nil {
+		return nil, err
+	}
+
+	modern, err := readTermsFromCSV(modernSrc)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(legacy, modern...), nil
 }
 
-func readTerms(src string) ([]*Term, error) {
+func readTermsFromCSV(src string) ([]*Term, error) {
 	zr, err := zip.OpenReader(src)
 	if err != nil {
 		return nil, err

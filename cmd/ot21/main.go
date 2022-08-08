@@ -132,15 +132,6 @@ func readCases(r io.Reader) ([]*scotusdb.Case, error) {
 	return cases, nil
 }
 
-// func verifyAll(decisions []*Decision) error {
-// 	for _, decision := range decisions {
-// 		if !decision.isValid() {
-// 			return fmt.Errorf("%s is invalid", decision.Name)
-// 		}
-// 	}
-// 	return nil
-// }
-
 func main() {
 	var flags Flags
 	flags.Register(flag.CommandLine)
@@ -157,10 +148,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	b, err := json.MarshalIndent(cases, "", "  ")
-	if err != nil {
+	if err := json.NewEncoder(os.Stdout).Encode(cases); err != nil {
 		log.Panic(err)
 	}
-
-	fmt.Printf("%s\n", b)
 }

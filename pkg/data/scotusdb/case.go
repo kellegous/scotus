@@ -1,6 +1,7 @@
 package scotusdb
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/kellegous/scotus/pkg/csv"
@@ -13,6 +14,7 @@ type Case struct {
 	MinorityVotes int       `json:"minority-votes"`
 	DecisionDate  time.Time `json:"decision-date"`
 	Votes         []*Vote   `json:"votes"`
+	Chief         string    `json:"chief"`
 }
 
 func readCase(
@@ -33,14 +35,14 @@ func readCase(
 		return nil, false, err
 	}
 
-	majVotes, err := row.GetInt("majVotes")
+	majVotes, err := row.GetInt("majVotes", -1)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("%s: %w", name, err)
 	}
 
-	minVotes, err := row.GetInt("minVotes")
+	minVotes, err := row.GetInt("minVotes", -1)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("%s: %w", name, err)
 	}
 
 	descDate, err := row.GetDate("dateDecision")
@@ -48,9 +50,15 @@ func readCase(
 		return nil, false, err
 	}
 
+	chief, err := row.Get("chief")
+	if err != nil {
+		return nil, false, err
+	}
+
 	c := &Case{
 		ID:            id,
 		Name:          name,
+		Chief:         chief,
 		MajorityVotes: majVotes,
 		MinorityVotes: minVotes,
 		DecisionDate:  descDate,

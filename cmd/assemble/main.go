@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
+	"sort"
 
 	"github.com/kellegous/scotus/pkg/data"
+	"github.com/kellegous/scotus/pkg/data/option"
 	"github.com/kellegous/scotus/pkg/data/overrulings"
 	"github.com/kellegous/scotus/pkg/data/scotusdb"
+	"github.com/kellegous/scotus/pkg/data/segalcover"
 )
 
 type Flags struct {
@@ -25,11 +27,6 @@ func (f *Flags) Register(fs *flag.FlagSet) {
 		"data-dir",
 		"data",
 		"the directory where the data will be kept")
-	fs.StringVar(
-		&f.ScotusDB.CasesURL,
-		"scotusdb.cases-url",
-		scotusdb.DefaultCasesURL,
-		"the URL to download scotusdb case-centered data")
 	fs.BoolVar(
 		&f.ResetData,
 		"reset-data",
@@ -37,9 +34,77 @@ func (f *Flags) Register(fs *flag.FlagSet) {
 		"whether to reset the data dir")
 }
 
-func yearsStandingInErr(c *overrulings.Decision) int {
-	ocs := c.Overruled
-	return c.Year - ocs[len(ocs)-1].Year
+func distinctStringsFromCases(
+	cases []*scotusdb.Case,
+	fn func(c *scotusdb.Case) string,
+) []string {
+	seen := map[string]bool{}
+	var items []string
+	for _, c := range cases {
+		item := fn(c)
+		if seen[item] {
+			continue
+		}
+
+		seen[item] = true
+		items = append(items, item)
+	}
+	return items
+}
+
+func distinctStringsFromVotes(
+	cases []*scotusdb.Case,
+	fn func(v *scotusdb.Vote) string,
+) []string {
+	seen := map[string]bool{}
+	var items []string
+	for _, c := range cases {
+		for _, v := range c.Votes {
+			item := fn(v)
+			if seen[item] {
+				continue
+			}
+			seen[item] = true
+			items = append(items, item)
+		}
+	}
+	sort.Strings(items)
+	return items
+}
+
+type JusticeDirection struct {
+	Justice    string
+	Directions map[scotusdb.Direction]int
+}
+
+func getAllDirections(terms []*scotusdb.Term) []*JusticeDirection {
+	byJustice := map[string]*JusticeDirection{}
+	for _, t := range terms {
+		for _, c := range t.Cases {
+			for _, v := range c.Votes {
+				forJustice := byJustice[v.JusticeName]
+				if forJustice == nil {
+					forJustice = &JusticeDirection{
+						Justice:    v.JusticeName,
+						Directions: map[scotusdb.Direction]int{},
+					}
+					byJustice[v.JusticeName] = forJustice
+				}
+				forJustice.Directions[v.Direction]++
+			}
+		}
+	}
+
+	var directions []*JusticeDirection
+	for _, direction := range byJustice {
+		directions = append(directions, direction)
+	}
+
+	sort.Slice(directions, func(i, j int) bool {
+		return directions[i].Justice < directions[j].Justice
+	})
+
+	return directions
 }
 
 func main() {
@@ -55,24 +120,24 @@ func main() {
 		log.Panic(err)
 	}
 
-	terms, err := scotusdb.Read(
+	_, err := scotusdb.Read(
 		context.Background(),
-		scotusdb.WithCasesFromURL(flags.ScotusDB.CasesURL),
 		scotusdb.WithDataDir(flags.DataDir))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	justices := map[string]bool{}
-	for _, t := range terms {
-		for _, c := range t.Cases {
-			for _, v := range c.Votes {
-				justices[v.JusticeName] = true
-			}
-		}
+	if _, err := overrulings.Read(
+		context.Background(),
+		option.WithDataDir(flags.DataDir),
+	); err != nil {
+		log.Panic(err)
 	}
 
-	for name := range justices {
-		fmt.Printf("%s\n", name)
+	if _, err := segalcover.Read(
+		context.Background(),
+		option.WithDataDir(flags.DataDir),
+	); err != nil {
+		log.Panic(err)
 	}
 }

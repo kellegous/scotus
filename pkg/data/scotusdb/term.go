@@ -1,6 +1,11 @@
 package scotusdb
 
-import "github.com/kellegous/scotus/pkg/csv"
+import (
+	"fmt"
+	"time"
+
+	"github.com/kellegous/scotus/pkg/csv"
+)
 
 type Term struct {
 	Year  int     `json:"year"`
@@ -11,9 +16,13 @@ func readTerm(
 	terms map[int]*Term,
 	row *csv.Row,
 ) (*Term, bool, error) {
-	year, err := row.GetInt("term")
+	year, err := row.GetInt("term", 0)
 	if err != nil {
 		return nil, false, err
+	}
+
+	if year < 1700 || year > time.Now().Year() {
+		return nil, false, fmt.Errorf("invalid term year: %d", year)
 	}
 
 	if t := terms[year]; t != nil {
