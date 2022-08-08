@@ -13,6 +13,7 @@ import (
 
 	"github.com/kellegous/scotus/pkg/data/internal"
 	"github.com/kellegous/scotus/pkg/data/option"
+	"github.com/kellegous/scotus/pkg/html/search"
 	"golang.org/x/net/html"
 )
 
@@ -42,73 +43,6 @@ func Read(
 	}
 
 	return read(src)
-}
-
-func isElementOf(name string) func(n *html.Node) bool {
-	return func(n *html.Node) bool {
-		return n.Type == html.ElementNode &&
-			n.Data == name
-	}
-}
-
-func hasParentOf(
-	n *html.Node,
-	fn func(n *html.Node) bool,
-) bool {
-	for c := n.Parent; c != nil; c = c.Parent {
-		if fn(c) {
-			return true
-		}
-	}
-	return false
-}
-
-func findElementsByPath(
-	root *html.Node,
-	path ...string,
-) []*html.Node {
-	if len(path) == 0 {
-		return nil
-	}
-
-	// find all elements matching the right-most selector
-	results := findAll(
-		root,
-		isElementOf(path[len(path)-1]),
-		nil)
-	path = path[:len(path)-1]
-
-	// now walk backwards along the path, removing elements that
-	// do not have matching parents.
-	for n := len(path); n > 0; n = len(path) {
-		var filtered []*html.Node
-		q := isElementOf(path[n-1])
-		path = path[:n-1]
-		for _, result := range results {
-			if hasParentOf(result, q) {
-				filtered = append(filtered, result)
-			}
-		}
-		results = filtered
-	}
-
-	return results
-}
-
-func findAll(
-	root *html.Node,
-	matches func(n *html.Node) bool,
-	existing []*html.Node,
-) []*html.Node {
-	if matches(root) {
-		return append(existing, root)
-	}
-
-	for n := root.FirstChild; n != nil; n = n.NextSibling {
-		existing = findAll(n, matches, existing)
-	}
-
-	return existing
 }
 
 func parseYear(td *html.Node) (int, error) {
@@ -226,20 +160,25 @@ func parseDecision(tds []*html.Node) (*Decision, error) {
 }
 
 func extract(doc *html.Node) ([]*Decision, error) {
-	trs := findElementsByPath(
+	trs := search.Query(
 		doc,
-		"table", "tbody", "tr")
+		search.HasAll(
+			search.IsElementOf("tr"),
+			search.HasParent(
+				search.HasAll(
+					search.IsElementOf("tbody"),
+					search.HasParent(
+						search.IsElementOf("table"),
+					),
+				),
+			),
+		),
+	)
 
 	decisions := make([]*Decision, 0, len(trs))
 
 	for _, tr := range trs {
-		tds := findAll(
-			tr,
-			func(n *html.Node) bool {
-				return n.Type == html.ElementNode &&
-					n.Data == "td"
-			},
-			nil)
+		tds := search.Query(tr, search.IsElementOf("td"))
 		decision, err := parseDecision(tds)
 		if err != nil {
 			return nil, err

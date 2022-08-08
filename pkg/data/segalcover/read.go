@@ -16,7 +16,7 @@ const (
 func Read(
 	ctx context.Context,
 	opts ...option.DownloadOption,
-) (interface{}, error) {
+) ([]*Justice, error) {
 	var o option.DownloadOptions
 	o.ApplyOptions(opts, option.FromURL(DefaultURL))
 

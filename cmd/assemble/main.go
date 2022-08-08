@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"sort"
 
@@ -127,12 +128,14 @@ func main() {
 		log.Panic(err)
 	}
 
-	if _, err := overrulings.Read(
+	overruled, err := overrulings.Read(
 		context.Background(),
 		option.WithDataDir(flags.DataDir),
-	); err != nil {
+	)
+	if err != nil {
 		log.Panic(err)
 	}
+	fmt.Printf("%d\n", len(overruled))
 
 	if _, err := segalcover.Read(
 		context.Background(),
