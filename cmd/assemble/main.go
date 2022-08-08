@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -137,10 +138,17 @@ func main() {
 	}
 	fmt.Printf("%d\n", len(overruled))
 
-	if _, err := segalcover.Read(
+	justices, err := segalcover.Read(
 		context.Background(),
 		option.WithDataDir(flags.DataDir),
-	); err != nil {
+	)
+	if err != nil {
 		log.Panic(err)
 	}
+
+	b, err := json.MarshalIndent(justices, "", "  ")
+	if err != nil {
+		log.Panic(err)
+	}
+	fmt.Printf("%s\n", b)
 }

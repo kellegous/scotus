@@ -1,9 +1,9 @@
 package segalcover
 
 type Justice struct {
-	Name          string
-	Chief         bool
-	Ideology      float64
-	YearNominated int
-	NominatedBy   *President
+	Name          string     `json:"name"`
+	Chief         bool       `json:"as_chief"`
+	Ideology      float64    `json:"ideology"`
+	YearNominated int        `json:"year_nominated"`
+	NominatedBy   *President `json:"nominated_by"`
 }

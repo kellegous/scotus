@@ -104,12 +104,3 @@ func GetAttr(n *html.Node, name string) *html.Attribute {
 	}
 	return nil
 }
-
-/**
-allOf(
-	IsElementOf("tr"),
-	HasParent(
-		IsElementOf("tbody"),
-		HasParent(IsElementOf("table")))
-)
-**/

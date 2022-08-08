@@ -160,6 +160,7 @@ func parseDecision(tds []*html.Node) (*Decision, error) {
 }
 
 func extract(doc *html.Node) ([]*Decision, error) {
+	// selector "table tbody tr"
 	trs := search.Query(
 		doc,
 		search.HasAll(
