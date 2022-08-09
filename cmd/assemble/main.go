@@ -9,10 +9,9 @@ import (
 	"sort"
 
 	"github.com/kellegous/scotus/pkg/data"
+	"github.com/kellegous/scotus/pkg/data/martinquinn"
 	"github.com/kellegous/scotus/pkg/data/option"
-	"github.com/kellegous/scotus/pkg/data/overrulings"
 	"github.com/kellegous/scotus/pkg/data/scotusdb"
-	"github.com/kellegous/scotus/pkg/data/segalcover"
 )
 
 type Flags struct {
@@ -122,33 +121,47 @@ func main() {
 		log.Panic(err)
 	}
 
-	_, err := scotusdb.Read(
+	// _, err := scotusdb.Read(
+	// 	context.Background(),
+	// 	scotusdb.WithDataDir(flags.DataDir))
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+
+	// overruled, err := overrulings.Read(
+	// 	context.Background(),
+	// 	option.WithDataDir(flags.DataDir),
+	// )
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+	// fmt.Printf("%d\n", len(overruled))
+
+	// justices, err := segalcover.Read(
+	// 	context.Background(),
+	// 	option.WithDataDir(flags.DataDir),
+	// )
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+
+	// b, err := json.MarshalIndent(justices, "", "  ")
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+	// fmt.Printf("%s\n", b)
+
+	terms, err := martinquinn.Read(
 		context.Background(),
-		scotusdb.WithDataDir(flags.DataDir))
+		option.WithDataDir(flags.DataDir))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	overruled, err := overrulings.Read(
-		context.Background(),
-		option.WithDataDir(flags.DataDir),
-	)
-	if err != nil {
-		log.Panic(err)
-	}
-	fmt.Printf("%d\n", len(overruled))
-
-	justices, err := segalcover.Read(
-		context.Background(),
-		option.WithDataDir(flags.DataDir),
-	)
+	b, err := json.MarshalIndent(terms, "", "  ")
 	if err != nil {
 		log.Panic(err)
 	}
 
-	b, err := json.MarshalIndent(justices, "", "  ")
-	if err != nil {
-		log.Panic(err)
-	}
 	fmt.Printf("%s\n", b)
 }

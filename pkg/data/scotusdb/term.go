@@ -2,6 +2,7 @@ package scotusdb
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/kellegous/scotus/pkg/csv"
@@ -16,7 +17,7 @@ func readTerm(
 	terms map[int]*Term,
 	row *csv.Row,
 ) (*Term, bool, error) {
-	year, err := row.GetInt("term", 0)
+	year, err := row.GetInt("term", strconv.Atoi)
 	if err != nil {
 		return nil, false, err
 	}

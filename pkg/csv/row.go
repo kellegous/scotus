@@ -23,23 +23,40 @@ func (r *Row) Get(name string) (string, error) {
 
 func (r *Row) GetInt(
 	name string,
-	emptyVal int,
+	fn func(s string) (int, error),
 ) (int, error) {
 	v, err := r.Get(name)
 	if err != nil {
 		return 0, err
 	}
 
-	if v == "" {
-		return emptyVal, nil
-	}
-
-	i, err := strconv.Atoi(v)
+	i, err := fn(v)
 	if err != nil {
-		return 0, fmt.Errorf("%s is not a valid int (%s)", name, v)
+		return 0, fmt.Errorf("%s cannot be made into an int %w", name, err)
 	}
 
 	return i, nil
+}
+
+func ParseFloat64(s string) (float64, error) {
+	return strconv.ParseFloat(s, 64)
+}
+
+func (r *Row) GetFloat64(
+	name string,
+	fn func(s string) (float64, error),
+) (float64, error) {
+	v, err := r.Get(name)
+	if err != nil {
+		return 0.0, err
+	}
+
+	f, err := fn(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s cannot be made into a float64: %w", name, err)
+	}
+
+	return f, nil
 }
 
 func (r *Row) GetDate(name string) (time.Time, error) {
