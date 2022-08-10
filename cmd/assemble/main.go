@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"sort"
 
 	"github.com/kellegous/scotus/pkg/data"
-	"github.com/kellegous/scotus/pkg/data/martinquinn"
+	"github.com/kellegous/scotus/pkg/data/martinquinn/bycourt"
 	"github.com/kellegous/scotus/pkg/data/option"
 	"github.com/kellegous/scotus/pkg/data/scotusdb"
 )
@@ -151,17 +150,28 @@ func main() {
 	// }
 	// fmt.Printf("%s\n", b)
 
-	terms, err := martinquinn.Read(
+	// terms, err := byjustice.Read(
+	// 	context.Background(),
+	// 	option.WithDataDir(flags.DataDir))
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+
+	// b, err := json.MarshalIndent(terms, "", "  ")
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+
+	// fmt.Printf("%s\n", b)
+
+	courts, err := bycourt.Read(
 		context.Background(),
 		option.WithDataDir(flags.DataDir))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	b, err := json.MarshalIndent(terms, "", "  ")
-	if err != nil {
-		log.Panic(err)
+	for _, court := range courts {
+		fmt.Printf("%d: %0.2f\n", court.Year, court.Median())
 	}
-
-	fmt.Printf("%s\n", b)
 }

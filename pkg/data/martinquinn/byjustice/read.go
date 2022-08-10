@@ -1,4 +1,4 @@
-package martinquinn
+package byjustice
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	DefaultJusticeURL = "https://mqscores.lsa.umich.edu/media/2020/justices.csv"
+	DefaultURL = "https://mqscores.lsa.umich.edu/media/2020/justices.csv"
 
-	justiceFilename = "martinquinn-justices.csv"
+	filename = "martinquinn-justices.csv"
 )
 
 func Read(
@@ -24,9 +24,9 @@ func Read(
 	opts ...option.DownloadOption,
 ) ([]*Term, error) {
 	var o option.DownloadOptions
-	o.ApplyOptions(opts, option.FromURL(DefaultJusticeURL))
+	o.ApplyOptions(opts, option.FromURL(DefaultURL))
 
-	src := filepath.Join(o.DataDir, justiceFilename)
+	src := filepath.Join(o.DataDir, filename)
 
 	if err := internal.EnsureDownload(
 		ctx,
