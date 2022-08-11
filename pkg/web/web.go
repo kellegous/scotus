@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"time"
-
-	"github.com/kellegous/scotus/pkg/logging"
 )
 
 func ListenAndServe(
@@ -13,12 +11,14 @@ func ListenAndServe(
 	addr string,
 	data *Data,
 ) error {
-	m := http.NewServeMux()
+	m := NewMux(ctx)
 
 	m.HandleFunc(
 		"/api/debug/build",
 		func(w http.ResponseWriter, r *http.Request) {
-			ctx, done, _ := logging.ForRequest(ctx, time.Minute)
+			ctx, done := context.WithTimeout(
+				ContextFrom(w),
+				time.Minute)
 			defer done()
 			sendJSONOK(ctx, w, data.Build)
 		})

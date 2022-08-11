@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -22,14 +21,19 @@ func L(ctx context.Context) *zap.Logger {
 	return zap.L()
 }
 
-func ForRequest(
-	ctx context.Context,
-	timeout time.Duration,
-) (context.Context, context.CancelFunc, *zap.Logger) {
+// func ForRequest(
+// 	ctx context.Context,
+// 	timeout time.Duration,
+// ) (context.Context, context.CancelFunc, *zap.Logger) {
+// 	lg := L(ctx).With(zap.String("req_id", requestID()))
+// 	ctx = context.WithValue(ctx, loggerKey, lg)
+// 	ctx, done := context.WithTimeout(ctx, timeout)
+// 	return ctx, done, lg
+// }
+
+func ForRequest(ctx context.Context) (context.Context, *zap.Logger) {
 	lg := L(ctx).With(zap.String("req_id", requestID()))
-	ctx = context.WithValue(ctx, loggerKey, lg)
-	ctx, done := context.WithTimeout(ctx, timeout)
-	return ctx, done, lg
+	return context.WithValue(ctx, loggerKey, lg), lg
 }
 
 func requestID() string {
