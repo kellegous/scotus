@@ -11,15 +11,16 @@ import (
 func ListenAndServe(
 	ctx context.Context,
 	addr string,
+	data *Data,
 ) error {
 	m := http.NewServeMux()
 
 	m.HandleFunc(
-		"/api/debug/buildinfo",
+		"/api/debug/build",
 		func(w http.ResponseWriter, r *http.Request) {
 			ctx, done, _ := logging.ForRequest(ctx, time.Minute)
 			defer done()
-			apiGetBuildInfo(ctx, w, r)
+			sendJSONOK(ctx, w, data.Build)
 		})
 
 	return http.ListenAndServe(addr, m)

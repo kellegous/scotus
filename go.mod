@@ -3,6 +3,7 @@ module github.com/kellegous/scotus
 go 1.18
 
 require (
+	github.com/kellegous/buildname v0.0.0-20200713164929-6b7d76d908db // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.22.0 // indirect

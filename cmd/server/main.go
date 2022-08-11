@@ -4,8 +4,10 @@ import (
 	"context"
 	"flag"
 
+	"github.com/kellegous/scotus/pkg/build"
 	"github.com/kellegous/scotus/pkg/logging"
 	"github.com/kellegous/scotus/pkg/web"
+
 	"go.uber.org/zap"
 )
 
@@ -42,14 +44,26 @@ func main() {
 
 	lg := logging.MustSetup()
 
+	b, err := build.Read()
+	if err != nil {
+		lg.Fatal("unable to read build info",
+			zap.Error(err))
+	}
+
 	ctx := context.Background()
 
 	lg.Info("server has started",
 		zap.String("http.addr", flags.HTTPAddr),
 		zap.Bool("reset-data", flags.ResetData),
-		zap.String("data-dir", flags.DataDir))
+		zap.String("data-dir", flags.DataDir),
+		zap.String("version", b.Version),
+		zap.String("name", b.Name))
 
-	if err := web.ListenAndServe(ctx, flags.HTTPAddr); err != nil {
+	if err := web.ListenAndServe(
+		ctx,
+		flags.HTTPAddr,
+		&web.Data{Build: b},
+	); err != nil {
 		lg.Fatal("unable to run http server",
 			zap.Error(err))
 		return
