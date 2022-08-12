@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
+	"os/exec"
+	"os/signal"
 
 	"github.com/kellegous/scotus/pkg/build"
 	"github.com/kellegous/scotus/pkg/logging"
@@ -14,7 +17,10 @@ import (
 type Flags struct {
 	DataDir   string
 	ResetData bool
-	HTTPAddr  string
+	HTTP      struct {
+		Addr      string
+		AssetsDir string
+	}
 }
 
 func (f *Flags) Register(fs *flag.FlagSet) {
@@ -31,10 +37,42 @@ func (f *Flags) Register(fs *flag.FlagSet) {
 		"whether to nuke the data directory")
 
 	fs.StringVar(
-		&f.HTTPAddr,
+		&f.HTTP.Addr,
 		"http.addr",
 		":8080",
 		"the address where the server will run")
+
+	fs.StringVar(
+		&f.HTTP.AssetsDir,
+		"http.assets-dir",
+		"",
+		"where to load web assets from")
+}
+
+func startWebpackWatch(
+	ctx context.Context,
+	root string,
+) error {
+	c := exec.CommandContext(ctx, "npx", "webpack", "watch", "--mode=development")
+	c.Dir = root
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Start()
+}
+
+func startHTTPServer(
+	ctx context.Context,
+	addr string,
+	assetsDir string,
+	data *web.Data,
+) chan error {
+	ch := make(chan error)
+
+	go func() {
+		ch <- web.ListenAndServe(ctx, addr, assetsDir, data)
+	}()
+
+	return ch
 }
 
 func main() {
@@ -50,22 +88,36 @@ func main() {
 			zap.Error(err))
 	}
 
-	ctx := context.Background()
+	ctx, done := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt)
+	defer done()
 
 	lg.Info("server has started",
-		zap.String("http.addr", flags.HTTPAddr),
+		zap.String("http.addr", flags.HTTP.Addr),
+		zap.String("http.assets-dir", flags.HTTP.AssetsDir),
 		zap.Bool("reset-data", flags.ResetData),
 		zap.String("data-dir", flags.DataDir),
 		zap.String("version", b.Version),
 		zap.String("name", b.Name))
 
-	if err := web.ListenAndServe(
-		ctx,
-		flags.HTTPAddr,
-		&web.Data{Build: b},
-	); err != nil {
-		lg.Fatal("unable to run http server",
+	if err := startWebpackWatch(ctx, "."); err != nil {
+		lg.Fatal("could not start webpack watcher",
 			zap.Error(err))
-		return
+	}
+
+	ch := startHTTPServer(
+		ctx,
+		flags.HTTP.Addr,
+		flags.HTTP.AssetsDir,
+		&web.Data{Build: b},
+	)
+
+	select {
+	case err := <-ch:
+		lg.Fatal("http server error",
+			zap.Error(err))
+	case <-ctx.Done():
+		break
 	}
 }

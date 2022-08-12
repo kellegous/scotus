@@ -9,9 +9,17 @@ import (
 func ListenAndServe(
 	ctx context.Context,
 	addr string,
+	assetsDir string,
 	data *Data,
 ) error {
 	m := NewMux(ctx)
+
+	fs, err := getAssetsFS(assetsDir)
+	if err != nil {
+		return err
+	}
+
+	m.Handle("/", http.FileServer(fs))
 
 	m.HandleFunc(
 		"/api/debug/build",
