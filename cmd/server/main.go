@@ -8,6 +8,7 @@ import (
 	"os/signal"
 
 	"github.com/kellegous/scotus/pkg/build"
+	"github.com/kellegous/scotus/pkg/data"
 	"github.com/kellegous/scotus/pkg/logging"
 	"github.com/kellegous/scotus/pkg/web"
 
@@ -93,16 +94,24 @@ func main() {
 		os.Interrupt)
 	defer done()
 
-	lg.Info("server has started",
-		zap.String("http.addr", flags.HTTP.Addr),
-		zap.String("http.assets-dir", flags.HTTP.AssetsDir),
-		zap.Bool("reset-data", flags.ResetData),
-		zap.String("data-dir", flags.DataDir),
-		zap.String("version", b.Version),
-		zap.String("name", b.Name))
+	if err := data.EnsureDir(
+		flags.DataDir,
+		0755,
+		flags.ResetData,
+	); err != nil {
+		lg.Fatal("unable create data dir",
+			zap.Error(err),
+			zap.String("path", flags.DataDir))
+	}
 
 	if err := startWebpackWatch(ctx, "."); err != nil {
 		lg.Fatal("could not start webpack watcher",
+			zap.Error(err))
+	}
+
+	m, err := data.LoadModel(ctx, flags.DataDir)
+	if err != nil {
+		lg.Fatal("unable to load model",
 			zap.Error(err))
 	}
 
@@ -110,8 +119,19 @@ func main() {
 		ctx,
 		flags.HTTP.Addr,
 		flags.HTTP.AssetsDir,
-		&web.Data{Build: b},
+		&web.Data{
+			Build: b,
+			Model: m,
+		},
 	)
+
+	lg.Info("server has started",
+		zap.String("http.addr", flags.HTTP.Addr),
+		zap.String("http.assets-dir", flags.HTTP.AssetsDir),
+		zap.Bool("reset-data", flags.ResetData),
+		zap.String("data-dir", flags.DataDir),
+		zap.String("version", b.Version),
+		zap.String("name", b.Name))
 
 	select {
 	case err := <-ch:
